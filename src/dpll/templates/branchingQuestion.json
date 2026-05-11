@@ -1,0 +1,25 @@
+{
+  "type": {
+    "library": "H5P.BranchingQuestion 1.0",
+    "params": {
+      "branchingQuestion": {
+        "alternatives": [],
+        "question": null
+      }
+    },
+    "subContentId": null,
+    "metadata": {
+      "contentType": "Branching Question",
+      "license": "U",
+      "title": null
+    }
+  },
+  "showContentTitle": false,
+  "proceedButtonText": "Weiter",
+  "forceContentFinished": "useBehavioural",
+  "feedback": {
+    "title": "",
+    "subtitle": ""
+  },
+  "contentBehaviour": "disabled"
+}

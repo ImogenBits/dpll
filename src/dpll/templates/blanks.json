@@ -1,0 +1,66 @@
+{
+  "library": "H5P.Blanks 1.14",
+  "params": {
+    "media": {
+      "disableImageZooming": false
+    },
+    "text": null,
+    "overallFeedback": [
+      {
+        "from": 0,
+        "to": 100
+      }
+    ],
+    "showSolutions": "L\u00f6sung anzeigen",
+    "tryAgain": "Wiederholen",
+    "checkAnswer": "\u00dcberpr\u00fcfen",
+    "submitAnswer": "Absenden",
+    "notFilledOut": "Bitte f\u00fclle alle L\u00fccken aus, um die L\u00f6sung ansehen zu k\u00f6nnen",
+    "answerIsCorrect": "&#039;:ans&#039; ist korrekt",
+    "answerIsWrong": "&#039;:ans&#039; ist falsch",
+    "answeredCorrectly": "Korrekt beantwortet",
+    "answeredIncorrectly": "Falsch beantwortet",
+    "solutionLabel": "Korrekte Antwort:",
+    "inputLabel": "L\u00fccke @num von @total",
+    "inputHasTipLabel": "Tipp verf\u00fcgbar",
+    "tipLabel": "Tipp",
+    "behaviour": {
+      "enableRetry": false,
+      "enableSolutionsButton": false,
+      "enableCheckButton": true,
+      "autoCheck": false,
+      "caseSensitive": true,
+      "showSolutionsRequiresInput": true,
+      "separateLines": false,
+      "confirmCheckDialog": false,
+      "confirmRetryDialog": false,
+      "acceptSpellingErrors": false
+    },
+    "scoreBarLabel": "Du hast :num von :total Punkten erreicht.",
+    "a11yCheck": "Die Antworten \u00fcberpr\u00fcfen. Die Eingaben werden als richtig, falsch oder unbeantwortet markiert.",
+    "a11yShowSolution": "Die L\u00f6sung anzeigen. Die richtigen L\u00f6sungen werden in der Aufgabe angezeigt.",
+    "a11yRetry": "Die Aufgabe wiederholen. Alle Eingaben werden zur\u00fcckgesetzt und die Aufgabe wird erneut gestartet.",
+    "a11yCheckingModeHeader": "\u00dcberpr\u00fcfen-Modus aktiv",
+    "confirmCheck": {
+      "header": "Beenden?",
+      "body": "Ganz sicher beenden?",
+      "cancelLabel": "Abbrechen",
+      "confirmLabel": "Beenden"
+    },
+    "confirmRetry": {
+      "header": "Wiederholen?",
+      "body": "Ganz sicher wiederholen?",
+      "cancelLabel": "Abbrechen",
+      "confirmLabel": "Best\u00e4tigen"
+    },
+    "questions": [
+      null
+    ]
+  },
+  "metadata": {
+    "contentType": "Fill in the Blanks",
+    "license": "U",
+    "title": null
+  },
+  "subContentId": null
+}

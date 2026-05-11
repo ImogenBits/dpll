@@ -5,7 +5,22 @@
       "presentation": {
         "slides": [
           {
-            "elements": [],
+            "elements": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 100,
+                "height": 100,
+                "action": null,
+                "alwaysDisplayComments": false,
+                "backgroundOpacity": 0,
+                "displayAsButton": false,
+                "buttonSize": "big",
+                "goToSlideType": "specified",
+                "invisible": false,
+                "solution": ""
+              }
+            ],
             "slideBackgroundSelector": {
               "fillSlideBackground": ""
             }
