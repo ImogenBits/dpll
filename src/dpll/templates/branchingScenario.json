@@ -1,0 +1,35 @@
+{
+  "branchingScenario": {
+    "content": null,
+    "endScreens": [
+      {
+        "endScreenTitle": "",
+        "endScreenSubtitle": "",
+        "contentId": -1,
+        "endScreenScore": 0
+      }
+    ],
+    "scoringOptionGroup": {
+      "scoringOption": "dynamic-score",
+      "includeInteractionsScores": true
+    },
+    "startScreen": {
+      "startScreenTitle": "",
+      "startScreenSubtitle": ""
+    },
+    "behaviour": {
+      "enableBackwardsNavigation": false,
+      "forceContentFinished": true,
+      "randomizeBranchingQuestions": false
+    },
+    "l10n": {
+      "startScreenButtonText": "Kurs starten",
+      "endScreenButtonText": "Kurs neu starten",
+      "backButtonText": "Zur\u00fcck",
+      "disableProceedButtonText": "N\u00f6tig, um das aktuelle Modul abzuschlie\u00dfen",
+      "replayButtonText": "Video wiederholen",
+      "scoreText": "Deine Punktzahl:",
+      "fullscreenAria": "Vollbild"
+    }
+  }
+}

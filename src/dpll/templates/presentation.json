@@ -1,0 +1,112 @@
+{
+  "type": {
+    "library": "H5P.CoursePresentation 1.25",
+    "params": {
+      "presentation": {
+        "slides": [
+          {
+            "elements": [],
+            "slideBackgroundSelector": {
+              "fillSlideBackground": ""
+            }
+          }
+        ],
+        "keywordListEnabled": true,
+        "globalBackgroundSelector": {
+          "fillGlobalBackground": ""
+        },
+        "keywordListAlwaysShow": false,
+        "keywordListAutoHide": false,
+        "keywordListOpacity": 90
+      },
+      "override": {
+        "activeSurface": false,
+        "hideSummarySlide": true,
+        "summarySlideSolutionButton": true,
+        "summarySlideRetryButton": true,
+        "enablePrintButton": false,
+        "social": {
+          "showFacebookShare": false,
+          "facebookShare": {
+            "url": "@currentpageurl",
+            "quote": "Ich habe @score von @maxScore Punkten bei der Aufgabe @currentpageurl erreicht."
+          },
+          "showTwitterShare": false,
+          "twitterShare": {
+            "statement": "Ich habe @score von @maxScore Punkten bei der Aufgabe @currentpageurl erreicht.",
+            "url": "@currentpageurl",
+            "hashtags": "h5p, Kurs"
+          },
+          "showGoogleShare": false,
+          "googleShareUrl": "@currentpageurl"
+        }
+      },
+      "l10n": {
+        "slide": "Folie",
+        "score": "Punktzahl",
+        "yourScore": "Deine Punktzahl",
+        "maxScore": "Maximale Punktzahl",
+        "total": "Summe",
+        "totalScore": "Gesamtpunktzahl",
+        "showSolutions": "L\u00f6sungen anzeigen",
+        "retry": "Wiederholen",
+        "exportAnswers": "Text exportieren",
+        "hideKeywords": "Stichwortliste verbergen",
+        "showKeywords": "Stichwortliste anzeigen",
+        "fullscreen": "Vollbild",
+        "exitFullscreen": "Vollbild beenden",
+        "prevSlide": "Vorherige Folie",
+        "nextSlide": "N\u00e4chste Folie",
+        "currentSlide": "Aktuelle Folie",
+        "lastSlide": "Letzte Folie",
+        "solutionModeTitle": "L\u00f6sungsmodus beenden",
+        "solutionModeText": "L\u00f6sungsmodus",
+        "summaryMultipleTaskText": "Mehrere Aufgaben",
+        "scoreMessage": "Du hast erreicht:",
+        "shareFacebook": "Auf Facebook teilen",
+        "shareTwitter": "Auf Twitter teilen",
+        "shareGoogle": "Auf Google+ teilen",
+        "summary": "Zusammenfassung",
+        "solutionsButtonTitle": "Kommentare anzeigen",
+        "printTitle": "Drucken",
+        "printIngress": "Wie m\u00f6chtest du diese Pr\u00e4sentation drucken?",
+        "printAllSlides": "Alle Folien drucken",
+        "printCurrentSlide": "Aktuelle Folie drucken",
+        "noTitle": "Kein Titel",
+        "accessibilitySlideNavigationExplanation": "Verwende die linke oder rechte Cursortaste, um zur Folie in der jeweiligen Richtung zu bl\u00e4ttern, wenn der Pr\u00e4sentationsbereich ausgew\u00e4hlt ist.",
+        "accessibilityCanvasLabel": "Pr\u00e4sentationsbereich. Verwende die linke oder rechte Cursortaste, um zwischen den Folien zu navigieren.",
+        "accessibilityProgressBarLabel": "W\u00e4hle das zu zeigende Schaubild",
+        "containsNotCompleted": "@slideName enth\u00e4lt eine nicht abgeschlossene Interaktion",
+        "containsCompleted": "@slideName wurde abgeschlossen",
+        "slideCount": "Folie @index von @total",
+        "containsOnlyCorrect": "@slideName enth\u00e4lt nur richtige Antworten",
+        "containsIncorrectAnswers": "@slideName enth\u00e4lt falsche Antworten",
+        "shareResult": "Ergebnis teilen",
+        "accessibilityTotalScore": "Du hast insgesamt @score von @maxScore Punkten erreicht.",
+        "accessibilityEnteredFullscreen": "Vollbild aktiviert",
+        "accessibilityExitedFullscreen": "Vollbild deaktiviert",
+        "confirmDialogHeader": "Antworten \u00fcbermitteln",
+        "confirmDialogText": "Damit werden deine Ergebnisse \u00fcbermittelt. M\u00f6chtest du fortfahren?",
+        "confirmDialogConfirmText": "Senden und Ergebnisse ansehen",
+        "slideshowNavigationLabel": "Schaubild-Navigation",
+        "confirmDialogConfirmLabel": "Confirm",
+        "confirmDialogCancelLabel": "Cancel"
+      }
+    },
+    "subContentId": null,
+    "metadata": {
+      "contentType": "Course Presentation",
+      "license": "U",
+      "title": null
+    }
+  },
+  "showContentTitle": false,
+  "proceedButtonText": "Weiter",
+  "forceContentFinished": "useBehavioural",
+  "feedback": {
+    "title": "",
+    "subtitle": ""
+  },
+  "contentBehaviour": "disabled",
+  "nextContentId": -1
+}
