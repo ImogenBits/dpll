@@ -1,19 +1,12 @@
 import json
-from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 from uuid import UUID, uuid4
 from zipfile import ZipFile
 
 type Json = dict[str, Any]
-
-
-@dataclass
-class Literal:
-    symbol: str
-    positive: bool
 
 
 def get_template(name: str) -> Json:
@@ -51,9 +44,7 @@ class Element:
     subcontent_id: UUID = field(default_factory=uuid4, init=False)
 
     def to_json(self) -> Json:
-        data = get_template(type(self).__name__)
-        data["type"]["subContentId"] = str(self.subcontent_id)
-        return data
+        return get_template(type(self).__name__)
 
 
 @dataclass
@@ -64,6 +55,7 @@ class OuterElement(Element):
     def to_json(self) -> Json:
         data = super().to_json()
         data["type"]["metadata"]["title"] = self.title
+        data["type"]["subContentId"] = str(self.subcontent_id)
         return data
 
     def build_task(self) -> str:
@@ -98,6 +90,11 @@ class PresentationElement(Element):
     y: int
     width: int
     height: int
+
+    def to_json(self) -> Json:
+        data = super().to_json()
+        data["subContentId"] = str(self.subcontent_id)
+        return data
 
 
 @dataclass
@@ -168,9 +165,7 @@ class Blanks(PresentationElement):
         data = get_template("blanks")
         data["params"]["text"] = format_text(self.description)
         data["params"]["questions"][0] = (
-            format_text(self.top_text)
-            + format_text("*" + "/".join(self.answers) + "*")
-            + format_text(self.bottom_text)
+            format_text(self.top_text) + format_text("*" + "/".join(self.answers) + "*") + format_text(self.bottom_text)
         )
         return data
 
@@ -215,36 +210,67 @@ class BranchingQuestion(OuterElement):
         return data
 
 
+@dataclass(frozen=True)
+class ALLiteral:
+    symbol: str
+    is_negated: bool
+
+    def __invert__(self):
+        return ALLiteral(self.symbol, not self.is_negated)
+
+    def __str__(self) -> str:
+        return f"¬{self.symbol}" if self.is_negated else self.symbol
+
+
+type Rule = Literal["UPR", "PLR"]
+
+@dataclass
+class Formula:
+    clauses: list[list[ALLiteral]]
+
+    def symbols(self) -> list[str]:
+        return sorted({lit.symbol for clause in self.clauses for lit in clause})
+
+    def rules(self) -> Iterable[tuple[Rule, ALLiteral, bool]]:
+        literals = {lit for clause in self.clauses for lit in clause}
+        for symbol in self.symbols():
+            for is_negated in (False, True):
+                lit = ALLiteral(symbol, is_negated=is_negated)
+                yield "UPR", lit, [lit] in self.clauses
+            for is_negated in (False, True):
+                lit = ALLiteral(symbol, is_negated=is_negated)
+                yield "PLR", lit, lit in literals and ~lit not in literals
+
+    def __str__(self) -> str:
+        return "∧".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
+
+
+@dataclass
+class SimplifyHistory:
+    rule: Rule
+    literal: ALLiteral
+    value: Literal[0, 1]
+    formula: Formula
+
+    def __str__(self) -> str:
+        return f"{self.rule} mit λ = {self.literal} setzt 𝔄({self.literal.symbol}) = {self.value} und liefert\n{self.formula}"
+
+
+def simplify_rules(formula: Formula, history: list[SimplifyHistory]) -> Presentation:
+    steps = "\n".join(str(elem) for elem in history)
+    formula_text = Text(0, 0, 100, 10, f"Aktuelle Formel: {formula}")
+    history_text = Text(0, 10, 50, 90, f"Bisherige Simplify Schritte:\n{steps}")
+    answers = [
+        MultipleChoiceAnswer(f"{rule} mit {lit}", correct=correct)
+        for rule, lit, correct in formula.rules()
+    ]
+    question = MultipleChoiceQuestion(50, 10, 50, 90, "Welche Vereinfachungsregeln lassen sich anwenden?", answers)
+    return Presentation(f"Simplify {formula}", [formula_text, history_text, question])
+
+
 if __name__ == "__main__":
-    last = MultipleChoiceQuestion(
-        "This has many options",
-        "Which of these are even?",
-        [MultipleChoiceAnswer(str(i), i % 2 == 0) for i in range(12)],
-    )
-    yep = MultipleChoiceQuestion(
-        "This has only a few options",
-        "Are red pandas the best?",
-        [
-            MultipleChoiceAnswer("obviously!", correct=True),
-            MultipleChoiceAnswer("nah", correct=False),
-        ],
-        next_question=last,
-    )
-    nope = Blanks(
-        "Big Title!",
-        "Task description",
-        "Write in either thingy or nothing",
-        "this also has a description",
-        ["thingy", "nothing"],
-        next_question=last,
-    )
-    first = BranchingQuestion(
-        "Some Title",
-        "Is the first question true?",
-        [
-            BranchingAlternative("yep", yep),
-            BranchingAlternative("nope", nope),
-        ],
-    )
-    #bundle_template(Path(__file__).parent / "templates" / "template.h5p")
+    P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
+    formula = Formula([[Q, P], [R, ~Q, ~P], [~Q, ~S, P], [~R]])
+    first = simplify_rules(formula, [])
+    # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     first.package_task(Path("test.h5p"))
