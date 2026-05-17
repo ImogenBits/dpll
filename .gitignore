@@ -1,4 +1,6 @@
 content.json
+src/dpll/templates/template
+/*.h5p
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
