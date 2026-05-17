@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -224,6 +224,17 @@ class ALLiteral:
 
 type Rule = Literal["UPR", "PLR"]
 
+
+@dataclass
+class SimplifyChoice:
+    rule: Rule
+    literal: ALLiteral
+    correct: bool
+
+    def __str__(self) -> str:
+        return f"{self.rule} mit {self.literal}"
+
+
 @dataclass
 class Formula:
     clauses: list[list[ALLiteral]]
@@ -231,15 +242,17 @@ class Formula:
     def symbols(self) -> list[str]:
         return sorted({lit.symbol for clause in self.clauses for lit in clause})
 
-    def rules(self) -> Iterable[tuple[Rule, ALLiteral, bool]]:
+    def rules(self) -> Iterable[SimplifyChoice]:
         literals = {lit for clause in self.clauses for lit in clause}
+        condition: dict[Rule, Callable[[ALLiteral], bool]] = {
+            "UPR": lambda lit: [lit] in self.clauses,
+            "PLR": lambda lit: lit in literals and ~lit not in literals,
+        }
         for symbol in self.symbols():
-            for is_negated in (False, True):
-                lit = ALLiteral(symbol, is_negated=is_negated)
-                yield "UPR", lit, [lit] in self.clauses
-            for is_negated in (False, True):
-                lit = ALLiteral(symbol, is_negated=is_negated)
-                yield "PLR", lit, lit in literals and ~lit not in literals
+            for rule in ("UPR", "PLR"):
+                for is_negated in (False, True):
+                    lit = ALLiteral(symbol, is_negated=is_negated)
+                    yield SimplifyChoice(rule, lit, condition[rule](lit))
 
     def __str__(self) -> str:
         return "∧".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
@@ -256,14 +269,11 @@ class SimplifyHistory:
         return f"{self.rule} mit λ = {self.literal} setzt 𝔄({self.literal.symbol}) = {self.value} und liefert\n{self.formula}"
 
 
-def simplify_rules(formula: Formula, history: list[SimplifyHistory]) -> Presentation:
+def simplify_rules(formula: Formula, history: list[SimplifyHistory], choices: list[SimplifyChoice]) -> Presentation:
     steps = "\n".join(str(elem) for elem in history)
     formula_text = Text(0, 0, 100, 10, f"Aktuelle Formel: {formula}")
     history_text = Text(0, 10, 50, 90, f"Bisherige Simplify Schritte:\n{steps}")
-    answers = [
-        MultipleChoiceAnswer(f"{rule} mit {lit}", correct=correct)
-        for rule, lit, correct in formula.rules()
-    ]
+    answers = [MultipleChoiceAnswer(str(choice), correct=choice.correct) for choice in formula.rules()]
     question = MultipleChoiceQuestion(50, 10, 50, 90, "Welche Vereinfachungsregeln lassen sich anwenden?", answers)
     return Presentation(f"Simplify {formula}", [formula_text, history_text, question])
 
@@ -271,6 +281,7 @@ def simplify_rules(formula: Formula, history: list[SimplifyHistory]) -> Presenta
 if __name__ == "__main__":
     P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
     formula = Formula([[Q, P], [R, ~Q, ~P], [~Q, ~S, P], [~R]])
-    first = simplify_rules(formula, [])
+    rules = list(formula.rules())
+    first = simplify_rules(formula, [], rules)
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     first.package_task(Path("test.h5p"))
