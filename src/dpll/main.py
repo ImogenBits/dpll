@@ -1,6 +1,7 @@
 import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self
 from uuid import UUID, uuid4
@@ -181,6 +182,17 @@ class Text(PresentationElement):
 
 
 @dataclass
+class Table(PresentationElement):
+    title: str
+    text: str
+
+    def to_json(self) -> dict[str, Any]:
+        data = super().to_json()
+        data["metadata"]["title"] = self.title
+        data["params"]["text"] = format_text(self.text)
+        return data
+
+@dataclass
 class BranchingAlternative:
     text: str
     next_question: OuterElement
@@ -308,7 +320,9 @@ class State:
         return cls(formula, [], formula)
 
 
-def with_history(title: str, question: MultipleChoiceQuestion, state: State, formula: Literal["curr", "orig"]) -> Presentation:
+def with_history(
+    title: str, question: MultipleChoiceQuestion, state: State, formula: Literal["curr", "orig"]
+) -> Presentation:
     question.x = 50
     question.y = 10
     question.width = 50
@@ -454,15 +468,240 @@ Aufgabenblatt 3 Punkte gibt, bekommt ihr 2.5 Punkte.
     )
     return Presentation("Notation", [Text(5, 5, 95, 95, text)])
 
-def main():
+
+#######################################################
+## DPLL Choice
+#######################################################
+
+
+@dataclass
+class RecursionState:
+    formula: Formula
+    history: list[RecursionLevel]
+    original_formula: Formula
+
+    @cached_property
+    def heuristic(self) -> str:
+        return ", ".join(
+            str(lit)
+            for symbol in self.original_formula.symbols()
+            for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
+        )
+
+    def update(self, level: RecursionLevel) -> RecursionState:
+        return RecursionState(
+            level.after_simplify,
+            history=[*self.history, level],
+            original_formula=self.original_formula,
+        )
+
+
+@dataclass
+class RecursionLevel:
+    formula: Formula
+    after_simplify: Formula
+    model: dict[str, int]
+
+    def __str__(self) -> str:
+        base = f"DPLL aufgerufen mit {self.formula}.\n"
+        if self.formula == self.after_simplify:
+            return base + "Simplify kann die Formel nicht vereinfachen."
+        else:
+            model = ", ".join(f"𝔄({sym}) = {val}" for sym, val in self.model.items())
+            return base + f"Simplify liefert {self.after_simplify} und {model}."
+
+
+def with_recursion_history(
+    state: RecursionState, question_text: str, answers: list[MultipleChoiceAnswer]
+) -> Presentation:
+    header = Text(
+        2,
+        2,
+        96,
+        16,
+        f"Die aktuelle Formel nach anwendung von Simplify ist: {state.formula}\n"
+        f"DPLL wählt in jedem Schritt das erste mögliche Literal in dieser Reihenfolge: {state.heuristic}",
+    )
+    history = Table(
+        2,
+        18,
+        58,
+        80,
+        "Bisherige DPLL Aufrufe",
+        "Bisherige DPLL Aufrufe:\n\n" + "\n\n".join(f"{i + 1}: {elem}" for i, elem in enumerate(state.history)),
+    )
+    question = MultipleChoiceQuestion(
+        60,
+        18,
+        38,
+        80,
+        question_text,
+        answers,
+    )
+    return Presentation(f"Step {state.formula}", [header, history, question])
+
+
+
+#"""
+#<div>&nbsp;</div>
+#<figure class="table" style="width:18.38575em;">
+#    <table class="ck-table-resized">
+#        <colgroup><col style="width:13.6%;">
+#            <col style="width:86.4%;">
+#        </colgroup>
+#        <thead>
+#            <tr>
+#                <th>&nbsp;</th>
+#                <th>&nbsp;</th>
+#            </tr>
+#        </thead>
+#        <tbody>
+#            <tr>
+#                <td>1:</td>
+#                <td style="border-style:none;">
+#                    Row 1 Col 2
+#                </td>
+#            <\/tr><tr><td>2<\/td><td><div>Row 2 Col 2<\/div><div>Bisherige DPLL Aufrufe:<\/div><div>1: DPLL aufgerufen mit (P\u2228\u00acQ)\u2227(\u00acP\u2228Q)\u2227(\u00acP\u2228\u00acQ)\u2227(S\u2228\u00acQ\u2228R)\u2227(\u00acS\u2228\u00acR\u2228P)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S).<br>Simplify kann die Formel nicht vereinfachen.<\/div><div>2: DPLL aufgerufen mit (P\u2228\u00acQ)\u2227(\u00acP\u2228Q)\u2227(\u00acP\u2228\u00acQ)\u2227(S\u2228\u00acQ\u2228R)\u2227(\u00acS\u2228\u00acR\u2228P)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(P).<br>Simplify liefert ()\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S) und \ud835\udd04(P) = 1, \ud835\udd04(Q) = 1.<\/div><div>3: DPLL aufgerufen mit (P\u2228\u00acQ)\u2227(\u00acP\u2228Q)\u2227(\u00acP\u2228\u00acQ)\u2227(S\u2228\u00acQ\u2228R)\u2227(\u00acS\u2228\u00acR\u2228P)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(\u00acP).<br>Simplify liefert (S\u2228R)\u2227(\u00acS\u2228\u00acR)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S) und \ud835\udd04(P) = 0, \ud835\udd04(Q) = 0.<\/div><div>4: DPLL aufgerufen mit (S\u2228R)\u2227(\u00acS\u2228\u00acR)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(R).<br>Simplify liefert () und \ud835\udd04(R) = 1, \ud835\udd04(S) = 0.<\/div><div>5: DPLL aufgerufen mit (S\u2228R)\u2227(\u00acS\u2228\u00acR)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(\u00acR).<br>Simplify liefert () und \ud835\udd04(R) = 0, \ud835\udd04(S) = 1.<\/div><\/td><\/tr><\/tbody><\/table><\/figure><div class=\"table-overflow-protection\"><\/div>"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+def recursion_step(state: RecursionState, chosen_lit: ALLiteral | None) -> Presentation:
+    return with_recursion_history(
+        state,
+        "Was ist der nächste Schritt von DPLL?",
+        [
+            MultipleChoiceAnswer("Eine Belegung zurückgeben.", correct=False),
+            MultipleChoiceAnswer('"unerfüllbar" zurückgeben', correct=chosen_lit is None),
+            *(
+                MultipleChoiceAnswer(f"DPLL rekursiv mit {lit} aufrufen.", lit == chosen_lit)
+                for symbol in state.original_formula.symbols()
+                for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
+            ),
+        ],
+    )
+
+
+def backtrack_step(state: RecursionState, correct: int | None) -> Presentation:
+    return with_recursion_history(
+        state,
+        "Wird der Algorithmus beendet? Wenn nicht, zu welchem\nRekursionsschritt wird zurück gesprungen?",
+        [
+            MultipleChoiceAnswer('Der Algorithmus terminiert mit "unerfüllbar"', correct=correct is None),
+            *(
+                MultipleChoiceAnswer(f"Schritt {i + 1}", correct=i == correct)
+                for i, elem in enumerate(state.history)
+            ),
+        ],
+    )
+
+
+def recursion_define_model(state: RecursionState, model: dict[str, int]) -> Presentation:
+    header = Text(2, 2, 98, 12, f"Die ursprüngliche Formel ist: {state.original_formula}")
+    history = Text(
+        2,
+        12,
+        48,
+        86,
+        "Bisherige DPLL Aufrufe:\n\n" + "\n\n".join(str(elem) for elem in state.history),
+    )
+    question = MultipleChoiceQuestion(
+        0,
+        0,
+        0,
+        0,
+        "Welche Belegung gibt DPLL aus?\nWählen Sie die auf 1 gesetzten Literale aus.",
+        [MultipleChoiceAnswer(symbol, bool(model[symbol])) for symbol in state.original_formula.symbols()],
+    )
+    return Presentation(f"Step {state.formula}", [header, history, question])
+
+
+def aufgabe_1() -> OuterElement:
     P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
     formula = Formula(((Q, P), (R, ~Q, ~P), (~Q, ~S, P), (~R,)))
     state = State.fresh(formula)
-    notation = notation_slide()
-    notation.next_question = simplify_rules(state)
-    #bundle_template(Path(__file__).parent / "templates" / "template.h5p")
-    notation.package_task(Path("test.h5p"))
+    return simplify_rules(state)
+
+
+def aufgabe_2() -> OuterElement:
+    P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
+    phi = Formula((
+        (P, ~Q),
+        (~P, Q),
+        (~P, ~Q),
+        (S, ~Q, R),
+        (~S, ~R, P),
+        (~S, R),
+        (~R, S),
+    ))
+    state = RecursionState(phi, [RecursionLevel(phi, phi, {})], phi)
+    first = curr = recursion_step(state, P)
+
+    psi = Formula((
+        (),
+        (~S, R),
+        (~R, S),
+    ))
+    level = RecursionLevel(Formula((*phi.clauses, (P,))), psi, {"P": 1, "Q": 1})
+    state = state.update(level)
+    curr.next_question = curr = recursion_step(state, None)
+
+    curr.next_question = curr = backtrack_step(state, 0)
+
+    state = RecursionState(phi, state.history, phi)
+    curr.next_question = curr = recursion_step(state, ~P)
+
+    psi_prime = Formula((
+        (S, R),
+        (~S, ~R),
+        (~S, R),
+        (~R, S),
+    ))
+    level = RecursionLevel(Formula((*phi.clauses, (~P,))), psi_prime, {"P": 0, "Q": 0})
+    state = state.update(level)
+    curr.next_question = curr = recursion_step(state, R)
+
+    theta = Formula(((),))
+    level = RecursionLevel(Formula((*psi_prime.clauses, (R,))), theta, {"R": 1, "S": 0})
+    state = state.update(level)
+    curr.next_question = curr = recursion_step(state, None)
+
+    curr.next_question = curr = backtrack_step(state, 2)
+
+    state = RecursionState(psi_prime, state.history, phi)
+    curr.next_question = curr = recursion_step(state, ~R)
+
+    theta_prime = theta
+    level = RecursionLevel(Formula((*psi_prime.clauses, (~R,))), theta_prime, {"R": 0, "S": 1})
+    state = state.update(level)
+    curr.next_question = curr = recursion_step(state, None)
+
+    curr.next_question = curr = backtrack_step(state, 2)
+
+    state = RecursionState(psi_prime, state.history, phi)
+    curr.next_question = curr = recursion_step(state, None)
+
+    curr.next_question = curr = backtrack_step(state, 0)
+
+    state = RecursionState(phi, state.history, phi)
+    curr.next_question = curr = recursion_step(state, None)
+
+    curr.next_question = curr = backtrack_step(state, None)
+
+    return first
 
 
 if __name__ == "__main__":
-    main()
+    notation = notation_slide()
+    notation.next_question = aufgabe_2()
+    # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
+    notation.package_task(Path("test.h5p"))
