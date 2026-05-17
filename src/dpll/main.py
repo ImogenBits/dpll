@@ -2,7 +2,7 @@ import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Self
 from uuid import UUID, uuid4
 from zipfile import ZipFile
 
@@ -17,7 +17,7 @@ def get_template(name: str) -> Json:
 
 
 def format_text(text: str) -> str:
-    return "".join(f"<p>{line}</p>" for line in text.splitlines())
+    return "".join(f"<p>{line.replace('\n', '</br>')}</p>" for line in text.split("\n\n"))
 
 
 def iter_children(path: Path) -> Iterable[Path]:
@@ -210,6 +210,11 @@ class BranchingQuestion(OuterElement):
         return data
 
 
+#####################
+# DPPL recursion tree
+#####################
+
+
 @dataclass(frozen=True)
 class ALLiteral:
     symbol: str
@@ -222,11 +227,42 @@ class ALLiteral:
         return f"¬{self.symbol}" if self.is_negated else self.symbol
 
 
+@dataclass(frozen=True)
+class Formula:
+    clauses: tuple[tuple[ALLiteral, ...], ...]
+
+    def symbols(self) -> list[str]:
+        return sorted({lit.symbol for clause in self.clauses for lit in clause})
+
+    def rules(self) -> Iterable[RuleOption]:
+        literals = {lit for clause in self.clauses for lit in clause}
+        condition: dict[Rule, Callable[[ALLiteral], bool]] = {
+            "UPR": lambda lit: (lit,) in self.clauses,
+            "PLR": lambda lit: lit in literals and ~lit not in literals,
+        }
+        for symbol in self.symbols():
+            for rule in ("UPR", "PLR"):
+                for is_negated in (False, True):
+                    lit = ALLiteral(symbol, is_negated=is_negated)
+                    yield RuleOption(rule, lit, condition[rule](lit))
+
+    def __str__(self) -> str:
+        if not self.clauses:
+            return "⊤"
+        return "∧".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
+
+    def ascii(self) -> str:
+        return "&".join(
+            "(" + "|".join(("!" if lit.is_negated else "") + lit.symbol for lit in clause) + ")"
+            for clause in self.clauses
+        )
+
+
 type Rule = Literal["UPR", "PLR"]
 
 
-@dataclass
-class SimplifyChoice:
+@dataclass(frozen=True)
+class RuleOption:
     rule: Rule
     literal: ALLiteral
     correct: bool
@@ -236,52 +272,197 @@ class SimplifyChoice:
 
 
 @dataclass
-class Formula:
-    clauses: list[list[ALLiteral]]
-
-    def symbols(self) -> list[str]:
-        return sorted({lit.symbol for clause in self.clauses for lit in clause})
-
-    def rules(self) -> Iterable[SimplifyChoice]:
-        literals = {lit for clause in self.clauses for lit in clause}
-        condition: dict[Rule, Callable[[ALLiteral], bool]] = {
-            "UPR": lambda lit: [lit] in self.clauses,
-            "PLR": lambda lit: lit in literals and ~lit not in literals,
-        }
-        for symbol in self.symbols():
-            for rule in ("UPR", "PLR"):
-                for is_negated in (False, True):
-                    lit = ALLiteral(symbol, is_negated=is_negated)
-                    yield SimplifyChoice(rule, lit, condition[rule](lit))
+class RuleApplication:
+    rule: Rule
+    literal: ALLiteral
+    formula: Formula
+    model: dict[str, int]
 
     def __str__(self) -> str:
-        return "∧".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
+        model = ", ".join(f"𝔄({sym}) = {val}" for sym, val in self.model.items())
+        return f"{self.rule} mit λ = {self.literal} setzt {model} und liefert\n{self.formula}"
+
+    @classmethod
+    def from_rule_choice(cls, formula: Formula, rule: RuleOption) -> Self:
+        new_formula = Formula(
+            tuple(
+                tuple(lit for lit in clause if ~rule.literal != lit)
+                for clause in formula.clauses
+                if rule.literal not in clause
+            )
+        )
+        old_symbols = set(formula.symbols())
+        model = dict.fromkeys((sym for sym in new_formula.symbols() if sym not in old_symbols), 0)
+        model[rule.literal.symbol] = int(not rule.literal.is_negated)
+        return cls(rule.rule, rule.literal, new_formula, model)
 
 
 @dataclass
-class SimplifyHistory:
-    rule: Rule
-    literal: ALLiteral
-    value: Literal[0, 1]
+class State:
     formula: Formula
+    history: list[RuleApplication]
+    original_formula: Formula
 
-    def __str__(self) -> str:
-        return f"{self.rule} mit λ = {self.literal} setzt 𝔄({self.literal.symbol}) = {self.value} und liefert\n{self.formula}"
+    @classmethod
+    def fresh(cls, formula: Formula) -> Self:
+        return cls(formula, [], formula)
 
 
-def simplify_rules(formula: Formula, history: list[SimplifyHistory], choices: list[SimplifyChoice]) -> Presentation:
-    steps = "\n".join(str(elem) for elem in history)
-    formula_text = Text(0, 0, 100, 10, f"Aktuelle Formel: {formula}")
-    history_text = Text(0, 10, 50, 90, f"Bisherige Simplify Schritte:\n{steps}")
-    answers = [MultipleChoiceAnswer(str(choice), correct=choice.correct) for choice in formula.rules()]
-    question = MultipleChoiceQuestion(50, 10, 50, 90, "Welche Vereinfachungsregeln lassen sich anwenden?", answers)
-    return Presentation(f"Simplify {formula}", [formula_text, history_text, question])
+def with_history(title: str, question: MultipleChoiceQuestion, state: State, formula: Literal["curr", "orig"]) -> Presentation:
+    question.x = 50
+    question.y = 10
+    question.width = 50
+    question.height = 90
+    steps = "\n\n".join(str(elem) for elem in state.history)
+    if formula == "curr":
+        formula_str = f"Aktuelle Formel: {state.formula}"
+    else:
+        formula_str = f"Ursprüngliche Formel: {state.original_formula}"
+    formula_text = Text(0, 0, 100, 10, formula_str)
+    history_text = Text(0, 10, 50, 90, f"Bisherige Simplify Schritte:\n\n{steps}")
+    return Presentation(title, [formula_text, history_text, question])
+
+
+def simplify_rules(state: State) -> Presentation:
+    rules = list(state.formula.rules())
+    if not rules:
+        return dpll_next_step(state)
+    correct = [choice for choice in rules if choice.correct]
+    answers = [MultipleChoiceAnswer(str(choice), correct=choice.correct) for choice in rules]
+    question = MultipleChoiceQuestion(0, 0, 0, 0, "Welche Vereinfachungsregeln lassen sich anwenden?", answers)
+    rules_choice = with_history(f"Simplify {state.formula}", question, state, "curr")
+    match correct:
+        case []:
+            rules_choice.next_question = dpll_next_step(state)
+        case [choice]:
+            rules_choice.next_question = simplify_apply(state, choice)
+        case _:
+            rules_choice.next_question = BranchingQuestion(
+                "Choose " + ", ".join(str(choice) for choice in correct),
+                "Welche der Optionen wollen Sie anwenden?",
+                [BranchingAlternative(str(choice), simplify_apply(state, choice)) for choice in correct],
+            )
+    return rules_choice
+
+
+def simplify_apply(state: State, rule: RuleOption) -> Presentation:
+    application = RuleApplication.from_rule_choice(state.formula, rule)
+    new_state = State(application.formula, [*state.history, application], state.original_formula)
+    blanks = Blanks(
+        0,
+        0,
+        100,
+        100,
+        "Trage die vereinfachte Formel ein. Nutze die computerlesbare Notation ohne "
+        "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
+        f"Wende {rule} an auf die Formel {state.formula}",
+        f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}",
+        [str(application.formula), application.formula.ascii()],
+    )
+    return Presentation(f"Apply {rule} to {state.formula}", [blanks], next_question=simplify_rules(new_state))
+
+
+def dpll_next_step(state: State) -> Presentation:
+    formula = state.formula
+    first = len(formula.clauses) == 0
+    second = () in formula.clauses
+    question = MultipleChoiceQuestion(
+        0,
+        0,
+        100,
+        100,
+        f"Simplify gibt {formula} aus. Was ist das weitere Vorgehen von DPLL?",
+        [
+            MultipleChoiceAnswer("Die Formel ist gleich ⊤, wir geben eine Belegung zurück.", first),
+            MultipleChoiceAnswer('Die Formel enthält  als Klausel, wir geben "unerfüllbar" zurück.', second),
+            MultipleChoiceAnswer("Wir wählen ein Literal und wenden DPLL rekursiv an.", not first and not second),
+        ],
+    )
+    if first:
+        next_question = dpll_define_model(state)
+    elif second:
+        next_question = None
+    else:
+        next_question = dpll_choose_literal(state)
+    return Presentation(f"DPLL Schritt {formula}", [question], next_question=next_question)
+
+
+def dpll_choose_literal(state: State) -> BranchingQuestion:
+    return BranchingQuestion(
+        f"Choose Literal {state.formula}",
+        "Mit welchen Literal wollen Sie fortfahren?",
+        [
+            BranchingAlternative(str(lit), dpll_apply_choice(state, lit))
+            for symbol in state.formula.symbols()
+            for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
+        ],
+    )
+
+
+def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
+    new_formula = Formula((*state.formula.clauses, (literal,)))
+    new_state = State(new_formula, state.history, state.original_formula)
+    question = Blanks(
+        0,
+        0,
+        100,
+        100,
+        "Trage die berechnete Formel ein. Nutze die computerlesbare Notation ohne "
+        "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
+        f"Die aktuelle Formel ist {state.formula}, das ausgewählte Literal ist {literal}."
+        " Mit welcher Formel wird DPLL rekursiv aufgerufen?",
+        f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}.",
+        [str(new_formula), new_formula.ascii()],
+    )
+    return Presentation(f"Apply Choice {literal}", [question], next_question=simplify_rules(new_state))
+
+
+def dpll_define_model(state: State) -> Presentation:
+    model = {k: v for application in state.history for k, v in application.model.items()}
+    question = MultipleChoiceQuestion(
+        0,
+        0,
+        0,
+        0,
+        "Welche Belegung gibt DPLL aus?\nWählen Sie die auf 1 gesetzten Literale aus.",
+        [MultipleChoiceAnswer(symbol, bool(model[symbol])) for symbol in state.original_formula.symbols()],
+    )
+    return with_history("Define Model", question, state, "orig")
+
+
+def notation_slide() -> Presentation:
+    text = format_text(
+        """In dieser Aufgabe werden wir die einzelnen Schritte des DPLL Algorithmus anwenden.
+Um das etwas einfacher zu machen verwenden wir dafür eine vereinfachte computerlesbare Notation.
+
+Dabei werden statt den logischen Junktoren ∧, ∨ und ¬ die ASCII Symbole &, | und ! verwendet.
+Die formell notwendigen Klammern innerhalb jeder Klausel werden weggelassen, aber um jede Klausel
+muss eine Klammer stehen. Insbesondere also auch um die leere Klausel und um welche die nur ein
+Literal enthalten. Es sind auch keine Leerzeichen erlaubt.
+
+Zum Beispiel wird die Formel "(P ∨ ¬Q) ∧ (R)" als "(P|!Q)&(R)" geschrieben und
+"(()∧(P∨(¬Q∨R)))∧(Q∨¬S)" als "()&(P|!Q|R)&(Q|!S)".
+
+Bei jeder Frage könnt ihr Teilpunkte erreichen. Falls ihr eine Frage falsch beantwortet könnt
+ihr mit den weiteren Fragen weiter machen, ihr könnt aber nicht zurück und vorherige Aufgaben
+korrigieren. Die in diesem System angezeigte "Punktzahl" ist nicht die Punkte die ihr insgesamt
+zur Zulassung bekommt, sondern wird erst auf die für diese Aufgabe verteilte Punkte runter
+gerechnet. Wenn ihr hier also z.B. 10 von 12 Fragen richtig beantwortet und die Aufgabe auf dem
+Aufgabenblatt 3 Punkte gibt, bekommt ihr 2.5 Punkte.
+
+"""
+    )
+    return Presentation("Notation", [Text(5, 5, 95, 95, text)])
+
+def main():
+    P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
+    formula = Formula(((Q, P), (R, ~Q, ~P), (~Q, ~S, P), (~R,)))
+    state = State.fresh(formula)
+    notation = notation_slide()
+    notation.next_question = simplify_rules(state)
+    #bundle_template(Path(__file__).parent / "templates" / "template.h5p")
+    notation.package_task(Path("test.h5p"))
 
 
 if __name__ == "__main__":
-    P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
-    formula = Formula([[Q, P], [R, ~Q, ~P], [~Q, ~S, P], [~R]])
-    rules = list(formula.rules())
-    first = simplify_rules(formula, [], rules)
-    # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
-    first.package_task(Path("test.h5p"))
+    main()
