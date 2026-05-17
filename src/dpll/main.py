@@ -176,6 +176,16 @@ class Blanks(PresentationElement):
 
 
 @dataclass
+class Text(PresentationElement):
+    text: str
+
+    def to_json(self) -> dict[str, Any]:
+        data = super().to_json()
+        data["params"]["text"] = format_text(self.text)
+        return data
+
+
+@dataclass
 class BranchingAlternative:
     text: str
     next_question: OuterElement
