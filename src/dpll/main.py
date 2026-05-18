@@ -494,7 +494,7 @@ def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
         f"Die aktuelle Formel ist {state.formula}, das ausgewählte Literal ist {literal}."
         " Mit welcher Formel wird DPLL rekursiv aufgerufen?",
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}.",
-        state.formula.valid_spellings(),
+        new_state.formula.valid_spellings(),
     )
     return Presentation(f"Apply Choice {literal}", [question], next_question=simplify_rules(new_state))
 
@@ -748,6 +748,6 @@ def aufgabe_2() -> OuterElement:
 
 if __name__ == "__main__":
     notation = notation_slide()
-    notation.next_question = aufgabe_2()
+    notation.next_question = aufgabe_1()
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     notation.package_task(Path("test.h5p"))
