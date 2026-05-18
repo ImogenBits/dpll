@@ -323,14 +323,76 @@ class RuleApplication:
 
 
 @dataclass
+class CurrentSimplify:
+    steps: list[RuleApplication]
+
+    def __str__(self) -> str:
+        steps = "".join(f'<p style="text-indent: 1em;">{step}</p>' for step in self.steps)
+        return f"<p>Aktueller Simplify Aufruf:</p>{steps}"
+
+    def summarize(self, orig: Formula, chosen_literal: ALLiteral) -> SimplifyAndRecurse:
+        if not self.steps:
+            raise RuntimeError
+        model = {k: v for step in self.steps for k, v in step.model.items()}
+        return SimplifyAndRecurse(orig, self.steps[-1].formula, model, chosen_literal)
+
+
+@dataclass
+class SimplifyAndRecurse:
+    orig_formula: Formula
+    simple_formula: Formula
+    model: dict[str, int]
+    chosen_literal: ALLiteral
+
+    def __str__(self) -> str:
+        model = ", ".join(f"𝔄({sym}) = {val}" for sym, val in self.model.items())
+        return (
+            f"<p>Simplify auf {self.orig_formula} hat {self.simple_formula} und {model} zurückgegeben.</br>"
+            f"Rekursiver Aufruf von DPLL mit {Formula((*self.simple_formula.clauses, (self.chosen_literal,)))}.</p>"
+        )
+
+
+@dataclass
 class State:
     formula: Formula
-    history: list[RuleApplication]
+    history: list[SimplifyAndRecurse]
+    current: CurrentSimplify
     original_formula: Formula
 
     @classmethod
     def fresh(cls, formula: Formula) -> Self:
-        return cls(formula, [], formula)
+        return cls(formula, [], CurrentSimplify([]), formula)
+
+    def __str__(self) -> str:
+        return "".join(str(elem) for elem in self.history) + str(self.current)
+
+    def dpll_choice(self, chosen_literal: ALLiteral) -> State:
+        if self.history:
+            step = self.history[-1]
+            original_formula = Formula((*step.simple_formula.clauses, (step.chosen_literal,)))
+        else:
+            original_formula = self.original_formula
+        return State(
+            formula=Formula((*self.formula.clauses, (chosen_literal,))),
+            history=[*self.history, self.current.summarize(original_formula, chosen_literal)],
+            current=CurrentSimplify([]),
+            original_formula=self.original_formula,
+        )
+
+    def simplify_step(self, step: RuleApplication) -> State:
+        return State(
+            formula=step.formula,
+            history=self.history,
+            current=CurrentSimplify([*self.current.steps, step]),
+            original_formula=self.original_formula,
+        )
+
+    def model(self) -> dict[str, int]:
+        return {
+            k: v for step in self.history for k, v in step.model.items()
+        } | {
+            k: v for step in self.current.steps for k, v in step.model.items()
+        }
 
 
 def with_history(
@@ -340,13 +402,12 @@ def with_history(
     question.y = 10
     question.width = 50
     question.height = 90
-    steps = "\n\n".join(str(elem) for elem in state.history)
     if formula == "curr":
         formula_str = f"Aktuelle Formel: {state.formula}"
     else:
         formula_str = f"Ursprüngliche Formel: {state.original_formula}"
     formula_text = Text(0, 0, 100, 10, formula_str)
-    history_text = Text(0, 10, 50, 90, f"Bisherige Simplify Schritte:\n\n{steps}")
+    history_text = Table(0, 10, 50, 90, "History", str(state))
     return Presentation(title, [formula_text, history_text, question])
 
 
@@ -374,7 +435,7 @@ def simplify_rules(state: State) -> Presentation:
 
 def simplify_apply(state: State, rule: RuleOption) -> Presentation:
     application = RuleApplication.from_rule_choice(state.formula, rule)
-    new_state = State(application.formula, [*state.history, application], state.original_formula)
+    new_state = state.simplify_step(application)
     blanks = Blanks(
         0,
         0,
@@ -427,8 +488,7 @@ def dpll_choose_literal(state: State) -> BranchingQuestion:
 
 
 def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
-    new_formula = Formula((*state.formula.clauses, (literal,)))
-    new_state = State(new_formula, state.history, state.original_formula)
+    new_state = state.dpll_choice(literal)
     question = Blanks(
         0,
         0,
@@ -445,7 +505,7 @@ def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
 
 
 def dpll_define_model(state: State) -> Presentation:
-    model = {k: v for application in state.history for k, v in application.model.items()}
+    model = state.model()
     question = MultipleChoiceQuestion(
         0,
         0,
