@@ -466,12 +466,7 @@ def dpll_next_step(state: State) -> Presentation:
             MultipleChoiceAnswer("Wir wählen ein Literal und wenden DPLL rekursiv an.", not first and not second),
         ],
     )
-    if first:
-        next_question = dpll_define_model(state)
-    elif second:
-        next_question = None
-    else:
-        next_question = dpll_choose_literal(state)
+    next_question = None if first or second else dpll_choose_literal(state)
     return Presentation(f"DPLL Schritt {formula}", [question], next_question=next_question)
 
 
