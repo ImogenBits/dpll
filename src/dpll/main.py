@@ -548,6 +548,7 @@ class RecursionState:
     formula: Formula
     history: list[RecursionLevel]
     original_formula: Formula
+    index: int
 
     @cached_property
     def heuristic(self) -> str:
@@ -562,6 +563,7 @@ class RecursionState:
             level.after_simplify,
             history=[*self.history, level],
             original_formula=self.original_formula,
+            index=self.index + 1,
         )
 
 
@@ -647,7 +649,7 @@ def with_recursion_history(
 def recursion_step(state: RecursionState, chosen_lit: ALLiteral | None) -> Presentation:
     return with_recursion_history(
         state,
-        "Was ist der nächste Schritt von DPLL?",
+        f"Was ist der nächste Schritt von DPLL Aufruf {state.index + 1}?",
         [
             MultipleChoiceAnswer("Eine Belegung zurückgeben.", correct=False),
             MultipleChoiceAnswer('"unerfüllbar" zurückgeben', correct=chosen_lit is None),
@@ -712,7 +714,7 @@ def aufgabe_2() -> OuterElement:
         (~S, R),
         (~R, S),
     ))
-    state = RecursionState(phi, [RecursionLevel(phi, phi, {})], phi)
+    state = RecursionState(phi, [RecursionLevel(phi, phi, {})], phi, 0)
     first = curr = recursion_step(state, P)
 
     psi = Formula((
@@ -726,7 +728,7 @@ def aufgabe_2() -> OuterElement:
 
     curr.next_question = curr = backtrack_step(state, 0)
 
-    state = RecursionState(phi, state.history, phi)
+    state = RecursionState(phi, state.history, phi, 0)
     curr.next_question = curr = recursion_step(state, ~P)
 
     psi_prime = Formula((
@@ -746,7 +748,7 @@ def aufgabe_2() -> OuterElement:
 
     curr.next_question = curr = backtrack_step(state, 2)
 
-    state = RecursionState(psi_prime, state.history, phi)
+    state = RecursionState(psi_prime, state.history, phi, 2)
     curr.next_question = curr = recursion_step(state, ~R)
 
     theta_prime = theta
@@ -756,12 +758,12 @@ def aufgabe_2() -> OuterElement:
 
     curr.next_question = curr = backtrack_step(state, 2)
 
-    state = RecursionState(psi_prime, state.history, phi)
+    state = RecursionState(psi_prime, state.history, phi, 2)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 0)
 
-    state = RecursionState(phi, state.history, phi)
+    state = RecursionState(phi, state.history, phi, 0)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, None)
