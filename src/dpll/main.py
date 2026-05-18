@@ -445,7 +445,7 @@ def simplify_apply(state: State, rule: RuleOption) -> Presentation:
         "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
         f"Wende {rule} an auf die Formel {state.formula}",
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}",
-        state.formula.valid_spellings(),
+        new_state.formula.valid_spellings(),
     )
     return Presentation(f"Apply {rule} to {state.formula}", [blanks], next_question=simplify_rules(new_state))
 
