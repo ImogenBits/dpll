@@ -572,14 +572,18 @@ class RecursionLevel:
     formula: Formula
     after_simplify: Formula
     model: dict[str, int]
+    ret: Literal["unsat"] | None = None
 
     def __str__(self) -> str:
-        base = f"DPLL aufgerufen mit {self.formula}.\n"
+        val = f"DPLL aufgerufen mit {self.formula}.\n"
         if self.formula == self.after_simplify:
-            return base + "Simplify kann die Formel nicht vereinfachen."
+            val += "Simplify kann die Formel nicht vereinfachen."
         else:
             model = ", ".join(f"𝔄({sym}) = {val}" for sym, val in self.model.items())
-            return base + f"Simplify liefert {self.after_simplify} und {model}."
+            val += f"Simplify liefert {self.after_simplify} und {model}."
+        if self.ret is not None:
+            val += '\nAufruf hat "unerfüllbar" zurückgegeben.'
+        return val
 
 
 def with_recursion_history(
@@ -612,47 +616,13 @@ def with_recursion_history(
     return Presentation(f"Step {state.formula}", [header, history, question])
 
 
-
-#"""
-#<div>&nbsp;</div>
-#<figure class="table" style="width:18.38575em;">
-#    <table class="ck-table-resized">
-#        <colgroup><col style="width:13.6%;">
-#            <col style="width:86.4%;">
-#        </colgroup>
-#        <thead>
-#            <tr>
-#                <th>&nbsp;</th>
-#                <th>&nbsp;</th>
-#            </tr>
-#        </thead>
-#        <tbody>
-#            <tr>
-#                <td>1:</td>
-#                <td style="border-style:none;">
-#                    Row 1 Col 2
-#                </td>
-#            <\/tr><tr><td>2<\/td><td><div>Row 2 Col 2<\/div><div>Bisherige DPLL Aufrufe:<\/div><div>1: DPLL aufgerufen mit (P\u2228\u00acQ)\u2227(\u00acP\u2228Q)\u2227(\u00acP\u2228\u00acQ)\u2227(S\u2228\u00acQ\u2228R)\u2227(\u00acS\u2228\u00acR\u2228P)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S).<br>Simplify kann die Formel nicht vereinfachen.<\/div><div>2: DPLL aufgerufen mit (P\u2228\u00acQ)\u2227(\u00acP\u2228Q)\u2227(\u00acP\u2228\u00acQ)\u2227(S\u2228\u00acQ\u2228R)\u2227(\u00acS\u2228\u00acR\u2228P)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(P).<br>Simplify liefert ()\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S) und \ud835\udd04(P) = 1, \ud835\udd04(Q) = 1.<\/div><div>3: DPLL aufgerufen mit (P\u2228\u00acQ)\u2227(\u00acP\u2228Q)\u2227(\u00acP\u2228\u00acQ)\u2227(S\u2228\u00acQ\u2228R)\u2227(\u00acS\u2228\u00acR\u2228P)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(\u00acP).<br>Simplify liefert (S\u2228R)\u2227(\u00acS\u2228\u00acR)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S) und \ud835\udd04(P) = 0, \ud835\udd04(Q) = 0.<\/div><div>4: DPLL aufgerufen mit (S\u2228R)\u2227(\u00acS\u2228\u00acR)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(R).<br>Simplify liefert () und \ud835\udd04(R) = 1, \ud835\udd04(S) = 0.<\/div><div>5: DPLL aufgerufen mit (S\u2228R)\u2227(\u00acS\u2228\u00acR)\u2227(\u00acS\u2228R)\u2227(\u00acR\u2228S)\u2227(\u00acR).<br>Simplify liefert () und \ud835\udd04(R) = 0, \ud835\udd04(S) = 1.<\/div><\/td><\/tr><\/tbody><\/table><\/figure><div class=\"table-overflow-protection\"><\/div>"""
-
-
-
-
-
-
-
-
-
-
-
-
-
 def recursion_step(state: RecursionState, chosen_lit: ALLiteral | None) -> Presentation:
     return with_recursion_history(
         state,
         f"Was ist der nächste Schritt von DPLL Aufruf {state.index + 1}?",
         [
             MultipleChoiceAnswer("Eine Belegung zurückgeben.", correct=False),
-            MultipleChoiceAnswer('"unerfüllbar" zurückgeben', correct=chosen_lit is None),
+            MultipleChoiceAnswer("Return aus dem aktuellen Aufruf.", correct=chosen_lit is None),
             *(
                 MultipleChoiceAnswer(f"DPLL rekursiv mit {lit} aufrufen.", lit == chosen_lit)
                 for symbol in state.original_formula.symbols()
