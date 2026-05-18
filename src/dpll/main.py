@@ -2,6 +2,7 @@ import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from functools import cached_property
+from itertools import product, starmap
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self
 from uuid import UUID, uuid4
@@ -264,10 +265,22 @@ class Formula:
         return "∧".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
 
     def ascii(self) -> str:
+        if not self.clauses:
+            return "1"
         return "&".join(
             "(" + "|".join(("!" if lit.is_negated else "") + lit.symbol for lit in clause) + ")"
             for clause in self.clauses
         )
+
+    def valid_spellings(self) -> list[str]:
+        if not self.clauses:
+            return ["", "1", "⊤"]
+        spellings: list[str] = []
+        for func, bot in ((str, "⊥"), (Formula.ascii, "0")):
+            template = func(self).replace("()", "{}")
+            count = template.count("{}")
+            spellings.extend(starmap(template.format, product(("()", bot), repeat=count)))
+        return spellings
 
 
 type Rule = Literal["UPR", "PLR"]
@@ -371,7 +384,7 @@ def simplify_apply(state: State, rule: RuleOption) -> Presentation:
         "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
         f"Wende {rule} an auf die Formel {state.formula}",
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}",
-        [str(application.formula), application.formula.ascii()],
+        state.formula.valid_spellings(),
     )
     return Presentation(f"Apply {rule} to {state.formula}", [blanks], next_question=simplify_rules(new_state))
 
@@ -426,7 +439,7 @@ def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
         f"Die aktuelle Formel ist {state.formula}, das ausgewählte Literal ist {literal}."
         " Mit welcher Formel wird DPLL rekursiv aufgerufen?",
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}.",
-        [str(new_formula), new_formula.ascii()],
+        state.formula.valid_spellings(),
     )
     return Presentation(f"Apply Choice {literal}", [question], next_question=simplify_rules(new_state))
 
@@ -452,7 +465,8 @@ Um das etwas einfacher zu machen verwenden wir dafür eine vereinfachte computer
 Dabei werden statt den logischen Junktoren ∧, ∨ und ¬ die ASCII Symbole &, | und ! verwendet.
 Die formell notwendigen Klammern innerhalb jeder Klausel werden weggelassen, aber um jede Klausel
 muss eine Klammer stehen. Insbesondere also auch um die leere Klausel und um welche die nur ein
-Literal enthalten. Es sind auch keine Leerzeichen erlaubt.
+Literal enthalten. Es sind auch keine Leerzeichen erlaubt. Für die leere Konjunktion kann man auch
+⊤ bzw. 1 schreiben, für die leere Klausel auch ⊥ bzw. 0.
 
 Zum Beispiel wird die Formel "(P ∨ ¬Q) ∧ (R)" als "(P|!Q)&(R)" geschrieben und
 "(()∧(P∨(¬Q∨R)))∧(Q∨¬S)" als "()&(P|!Q|R)&(Q|!S)".
@@ -702,6 +716,6 @@ def aufgabe_2() -> OuterElement:
 
 if __name__ == "__main__":
     notation = notation_slide()
-    notation.next_question = aufgabe_2()
+    notation.next_question = aufgabe_1()
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     notation.package_task(Path("test.h5p"))
