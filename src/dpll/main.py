@@ -563,7 +563,7 @@ class RecursionState:
             level.after_simplify,
             history=[*self.history, level],
             original_formula=self.original_formula,
-            index=self.index + 1,
+            index=len(self.history),
         )
 
 
@@ -635,7 +635,7 @@ def recursion_step(state: RecursionState, chosen_lit: ALLiteral | None) -> Prese
 def backtrack_step(state: RecursionState, correct: int | None) -> Presentation:
     return with_recursion_history(
         state,
-        "Wird der Algorithmus beendet? Wenn nicht, zu welchem\nRekursionsschritt wird zurück gesprungen?",
+        "Wird der Algorithmus beendet? Wenn nicht, zu welchem Rekursionsschritt wird zurück gesprungen?",
         [
             MultipleChoiceAnswer('Der Algorithmus terminiert mit "unerfüllbar"', correct=correct is None),
             *(
@@ -697,6 +697,7 @@ def aufgabe_2() -> OuterElement:
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 0)
+    state.history[1].ret = "unsat"
 
     state = RecursionState(phi, state.history, phi, 0)
     curr.next_question = curr = recursion_step(state, ~P)
@@ -717,6 +718,7 @@ def aufgabe_2() -> OuterElement:
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 2)
+    state.history[3].ret = "unsat"
 
     state = RecursionState(psi_prime, state.history, phi, 2)
     curr.next_question = curr = recursion_step(state, ~R)
@@ -727,22 +729,25 @@ def aufgabe_2() -> OuterElement:
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 2)
+    state.history[4].ret = "unsat"
 
     state = RecursionState(psi_prime, state.history, phi, 2)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 0)
+    state.history[2].ret = "unsat"
 
     state = RecursionState(phi, state.history, phi, 0)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, None)
+    state.history[0].ret = "unsat"
 
     return first
 
 
 if __name__ == "__main__":
     notation = notation_slide()
-    notation.next_question = aufgabe_1()
+    notation.next_question = aufgabe_2()
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     notation.package_task(Path("test.h5p"))
