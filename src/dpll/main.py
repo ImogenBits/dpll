@@ -19,7 +19,7 @@ def get_template(name: str) -> Json:
 
 
 def format_text(text: str) -> str:
-    return "".join(f"<p>{line.replace('\n', '</br>')}</p>" for line in text.split("\n\n"))
+    return "".join(f"<p>{line.replace('\n', '<br />')}</p>" for line in text.split("\n\n"))
 
 
 def iter_children(path: Path) -> Iterable[Path]:
@@ -262,7 +262,7 @@ class Formula:
     def __str__(self) -> str:
         if not self.clauses:
             return "⊤"
-        return "∧".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
+        return "∧<wbr />".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
 
     def ascii(self) -> str:
         if not self.clauses:
@@ -277,7 +277,7 @@ class Formula:
             return ["", "1", "⊤"]
         spellings: list[str] = []
         for func, bot in ((str, "⊥"), (Formula.ascii, "0")):
-            template = func(self).replace("()", "{}")
+            template = func(self).replace("()", "{}").replace("<wbr />", "")
             count = template.count("{}")
             spellings.extend(starmap(template.format, product(("()", bot), repeat=count)))
         return spellings
