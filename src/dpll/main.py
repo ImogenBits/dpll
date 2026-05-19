@@ -238,7 +238,10 @@ class ALLiteral:
         return ALLiteral(self.symbol, not self.is_negated)
 
     def __str__(self) -> str:
-        return f"¬{self.symbol}" if self.is_negated else self.symbol
+        return f"\\({self.latex()}\\)"
+
+    def latex(self) -> str:
+        return f"\\neg {self.symbol}" if self.is_negated else self.symbol
 
 
 @dataclass(frozen=True)
@@ -262,7 +265,7 @@ class Formula:
                     yield RuleOption(rule, lit, condition[rule](lit))
 
     def __str__(self) -> str:
-        return self.unicode() if self.short is None else self.short
+        return f"\\({self.latex()}\\)"
 
     def unicode(self) -> str:
         if not self.clauses:
@@ -277,18 +280,28 @@ class Formula:
             for clause in self.clauses
         )
 
+    def latex(self, *, force_long: bool = False) -> str:
+        if self.short is not None and not force_long:
+            return self.short
+        if not self.clauses:
+            return "\\top"
+        return "\\land ".join(
+            "(" + "\\lor ".join(("\\neg " if lit.is_negated else "") + lit.symbol for lit in clause) + ")"
+            for clause in self.clauses
+        )
+
     def valid_spellings(self) -> list[str]:
         if not self.clauses:
             return ["", "1", "⊤"]
         spellings: list[str] = []
-        for func, bot in ((str, "⊥"), (Formula.ascii, "0")):
+        for func, bot in ((str, "⊥"), (Formula.ascii, "0"), (Formula.latex, "\\bot")):
             template = func(self).replace("()", "{}").replace("<wbr />", "")
             count = template.count("{}")
             spellings.extend(starmap(template.format, product(("()", bot), repeat=count)))
         return spellings
 
     def add_unit(self, literal: ALLiteral) -> Self:
-        return type(self)((*self.clauses, (literal,)), f"{self.short}∧({literal})" if self.short else None)
+        return type(self)((*self.clauses, (literal,)), f"{self.short} \\land ({literal.latex()})" if self.short else None)
 
 
 type Rule = Literal["UPR", "PLR"]
@@ -312,8 +325,8 @@ class RuleApplication:
     model: dict[str, int]
 
     def __str__(self) -> str:
-        model = ", ".join(f"𝔄({sym}) = {val}" for sym, val in self.model.items())
-        return f"{self.rule} mit λ = {self.literal} setzt {model} und liefert\n{self.formula}"
+        model = ", ".join(f"\\mathfrak A({sym}) = {val}" for sym, val in self.model.items())
+        return f"{self.rule} mit \\(\\lambda = {self.literal.latex()}\\) setzt \\({model}\\) und liefert\n{self.formula}"
 
     @classmethod
     def from_rule_choice(cls, formula: Formula, rule: RuleOption) -> Self:
@@ -353,10 +366,10 @@ class SimplifyAndRecurse:
     chosen_literal: ALLiteral
 
     def __str__(self) -> str:
-        model = ", ".join(f"𝔄({sym}) = {val}" for sym, val in self.model.items())
+        model = ", ".join(f"\\mathfrak A({sym}) = {val}" for sym, val in self.model.items())
         return (
-            f"<p>Simplify auf {self.orig_formula} hat {self.simple_formula} und {model} zurückgegeben.</br>"
-            f"Rekursiver Aufruf von DPLL mit {Formula((*self.simple_formula.clauses, (self.chosen_literal,)))}.</p>"
+            f"<p>Simplify auf {self.orig_formula} hat {self.simple_formula} und \\({model}\\) zurückgegeben.</br>"
+            f"Rekursiver Aufruf von DPLL mit {self.simple_formula.add_unit(self.chosen_literal)}.</p>"
         )
 
 
@@ -523,14 +536,14 @@ def notation_slide() -> Presentation:
         """In dieser Aufgabe werden wir die einzelnen Schritte des DPLL Algorithmus anwenden.
 Um das etwas einfacher zu machen verwenden wir dafür eine vereinfachte computerlesbare Notation.
 
-Dabei werden statt den logischen Junktoren ∧, ∨ und ¬ die ASCII Symbole &, | und ! verwendet.
+Dabei werden statt den logischen Junktoren \\(\\land, \\lor\\) und \\(\\neg\\) die ASCII Symbole &, | und ! verwendet.
 Die formell notwendigen Klammern innerhalb jeder Klausel werden weggelassen, aber um jede Klausel
 muss eine Klammer stehen. Insbesondere also auch um die leere Klausel und um welche die nur ein
 Literal enthalten. Es sind auch keine Leerzeichen erlaubt. Für die leere Konjunktion kann man auch
-⊤ bzw. 1 schreiben, für die leere Klausel auch ⊥ bzw. 0.
+\\(\\top\\) bzw. 1 schreiben, für die leere Klausel auch \\(\\bot\\) bzw. 0.
 
-Zum Beispiel wird die Formel "(P ∨ ¬Q) ∧ (R)" als "(P|!Q)&(R)" geschrieben und
-"(()∧(P∨(¬Q∨R)))∧(Q∨¬S)" als "()&(P|!Q|R)&(Q|!S)".
+Zum Beispiel wird die Formel "\\((P \\lor \\neg Q) \\land (R)\\)" als "(P|!Q)&(R)" geschrieben und
+"\\((() \\land (P \\lor (\\neg Q \\lor R))) \\land (Q \\lor \\neg S)\\)" als "()&(P|!Q|R)&(Q|!S)".
 
 Bei jeder Frage könnt ihr Teilpunkte erreichen. Falls ihr eine Frage falsch beantwortet könnt
 ihr mit den weiteren Fragen weiter machen, ihr könnt aber nicht zurück und vorherige Aufgaben
@@ -564,16 +577,16 @@ class RecursionState:
 
     @cached_property
     def heuristic(self) -> str:
-        return ", ".join(
-            str(lit)
+        return "\\(" + ", ".join(
+            lit.latex()
             for symbol in self.original_formula.symbols()
             for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
-        )
+        ) + "\\)"
 
     @property
     def named_formulas(self) -> dict[str, str]:
         return {
-            formula.short: formula.unicode()
+            formula.short: formula.latex(force_long=True)
             for elem in self.history
             for formula in (elem.formula, elem.after_simplify)
             if formula.short is not None and formula.short.find("(") < 0
@@ -609,29 +622,29 @@ class RecursionLevel:
 def with_recursion_history(
     state: RecursionState, question_text: str, answers: list[MultipleChoiceAnswer]
 ) -> Presentation:
-    header_height = 16 + 3 * (1 + len(state.named_formulas))
+    header_height = 18 + 4 * (1 + len(state.named_formulas))
     header = Text(
+        0,
         2,
-        2,
-        96,
+        100,
         header_height,
         f"Die aktuelle Formel nach anwendung von Simplify ist: {state.formula}\n"
         f"DPLL wählt in jedem Schritt das erste mögliche Literal in dieser Reihenfolge: {state.heuristic}"
         + ("\nBenannte Formeln:" if state.named_formulas else "")
-        + "".join(f"\n{name} = {formula}" for name, formula in state.named_formulas.items()),
+        + "".join(f"\n\\({name} = {formula}\\)" for name, formula in state.named_formulas.items()),
     )
     history = Table(
         2,
         header_height + 2,
-        58,
+        46,
         96 - header_height,
         "Bisherige DPLL Aufrufe",
         "Bisherige DPLL Aufrufe:\n\n" + "\n\n".join(f"{i + 1}: {elem}" for i, elem in enumerate(state.history)),
     )
     question = MultipleChoiceQuestion(
-        60,
+        50,
         header_height + 2,
-        38,
+        48,
         96 - header_height,
         question_text,
         answers,
@@ -705,7 +718,7 @@ def aufgabe_2() -> OuterElement:
             (~S, R),
             (~R, S),
         ),
-        "ϕ",
+        "\\varphi",
     )
     state = RecursionState([RecursionLevel(phi, phi, {})], 0)
     first = curr = recursion_step(state, P)
@@ -716,7 +729,7 @@ def aufgabe_2() -> OuterElement:
             (~S, R),
             (~R, S),
         ),
-        "ψ",
+        "\\psi",
     )
     level = RecursionLevel(phi.add_unit(P), psi, {"P": 1, "Q": 1})
     state.recurse(level)
@@ -735,7 +748,7 @@ def aufgabe_2() -> OuterElement:
             (~S, R),
             (~R, S),
         ),
-        "ψ'",
+        "\\psi'",
     )
     level = RecursionLevel(phi.add_unit(~P), psi_prime, {"P": 0, "Q": 0})
     state.recurse(level)
