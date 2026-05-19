@@ -545,10 +545,17 @@ Aufgabenblatt 3 Punkte gibt, bekommt ihr 2.5 Punkte.
 
 @dataclass
 class RecursionState:
-    formula: Formula
     history: list[RecursionLevel]
-    original_formula: Formula
     index: int
+    named_formulas: dict[str, Formula]
+
+    @property
+    def formula(self) -> Formula:
+        return self.history[self.index].after_simplify
+
+    @property
+    def original_formula(self) -> Formula:
+        return self.history[0].formula
 
     @cached_property
     def heuristic(self) -> str:
@@ -558,13 +565,13 @@ class RecursionState:
             for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
         )
 
-    def update(self, level: RecursionLevel) -> RecursionState:
-        return RecursionState(
-            level.after_simplify,
-            history=[*self.history, level],
-            original_formula=self.original_formula,
-            index=len(self.history),
-        )
+    def recurse(self, level: RecursionLevel) -> None:
+        self.history.append(level)
+        self.index = len(self.history) - 1
+
+    def backtrack(self, level: int) -> None:
+        self.index = level
+
 
 
 @dataclass
@@ -622,7 +629,7 @@ def recursion_step(state: RecursionState, chosen_lit: ALLiteral | None) -> Prese
         f"Was ist der nächste Schritt von DPLL Aufruf {state.index + 1}?",
         [
             MultipleChoiceAnswer("Eine Belegung zurückgeben.", correct=False),
-            MultipleChoiceAnswer("Return aus dem aktuellen Aufruf.", correct=chosen_lit is None),
+            MultipleChoiceAnswer('Return "unerfüllbar" aus dem aktuellen Aufruf.', correct=chosen_lit is None),
             *(
                 MultipleChoiceAnswer(f"DPLL rekursiv mit {lit} aufrufen.", lit == chosen_lit)
                 for symbol in state.original_formula.symbols()
@@ -684,7 +691,7 @@ def aufgabe_2() -> OuterElement:
         (~S, R),
         (~R, S),
     ))
-    state = RecursionState(phi, [RecursionLevel(phi, phi, {})], phi, 0)
+    state = RecursionState([RecursionLevel(phi, phi, {})], 0, {})
     first = curr = recursion_step(state, P)
 
     psi = Formula((
@@ -693,13 +700,13 @@ def aufgabe_2() -> OuterElement:
         (~R, S),
     ))
     level = RecursionLevel(Formula((*phi.clauses, (P,))), psi, {"P": 1, "Q": 1})
-    state = state.update(level)
+    state.recurse(level)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 0)
     state.history[1].ret = "unsat"
+    state.backtrack(0)
 
-    state = RecursionState(phi, state.history, phi, 0)
     curr.next_question = curr = recursion_step(state, ~P)
 
     psi_prime = Formula((
@@ -709,35 +716,35 @@ def aufgabe_2() -> OuterElement:
         (~R, S),
     ))
     level = RecursionLevel(Formula((*phi.clauses, (~P,))), psi_prime, {"P": 0, "Q": 0})
-    state = state.update(level)
+    state.recurse(level)
     curr.next_question = curr = recursion_step(state, R)
 
     theta = Formula(((),))
     level = RecursionLevel(Formula((*psi_prime.clauses, (R,))), theta, {"R": 1, "S": 0})
-    state = state.update(level)
+    state.recurse(level)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 2)
     state.history[3].ret = "unsat"
+    state.backtrack(2)
 
-    state = RecursionState(psi_prime, state.history, phi, 2)
     curr.next_question = curr = recursion_step(state, ~R)
 
     theta_prime = theta
     level = RecursionLevel(Formula((*psi_prime.clauses, (~R,))), theta_prime, {"R": 0, "S": 1})
-    state = state.update(level)
+    state.recurse(level)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 2)
     state.history[4].ret = "unsat"
+    state.backtrack(2)
 
-    state = RecursionState(psi_prime, state.history, phi, 2)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, 0)
     state.history[2].ret = "unsat"
+    state.backtrack(0)
 
-    state = RecursionState(phi, state.history, phi, 0)
     curr.next_question = curr = recursion_step(state, None)
 
     curr.next_question = curr = backtrack_step(state, None)
@@ -748,6 +755,6 @@ def aufgabe_2() -> OuterElement:
 
 if __name__ == "__main__":
     notation = notation_slide()
-    notation.next_question = aufgabe_1()
+    notation.next_question = aufgabe_2()
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     notation.package_task(Path("test.h5p"))
