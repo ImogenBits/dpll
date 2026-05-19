@@ -193,6 +193,7 @@ class Table(PresentationElement):
         data["params"]["text"] = format_text(self.text)
         return data
 
+
 @dataclass
 class BranchingAlternative:
     text: str
@@ -243,6 +244,7 @@ class ALLiteral:
 @dataclass(frozen=True)
 class Formula:
     clauses: tuple[tuple[ALLiteral, ...], ...]
+    short: str | None = None
 
     def symbols(self) -> list[str]:
         return sorted({lit.symbol for clause in self.clauses for lit in clause})
@@ -260,6 +262,9 @@ class Formula:
                     yield RuleOption(rule, lit, condition[rule](lit))
 
     def __str__(self) -> str:
+        return self.unicode() if self.short is None else self.short
+
+    def unicode(self) -> str:
         if not self.clauses:
             return "⊤"
         return "∧<wbr />".join("(" + "∨".join(str(lit) for lit in clause) + ")" for clause in self.clauses)
@@ -281,6 +286,9 @@ class Formula:
             count = template.count("{}")
             spellings.extend(starmap(template.format, product(("()", bot), repeat=count)))
         return spellings
+
+    def add_unit(self, literal: ALLiteral) -> Self:
+        return type(self)((*self.clauses, (literal,)), f"{self.short}∧({literal})" if self.short else None)
 
 
 type Rule = Literal["UPR", "PLR"]
@@ -388,9 +396,7 @@ class State:
         )
 
     def model(self) -> dict[str, int]:
-        return {
-            k: v for step in self.history for k, v in step.model.items()
-        } | {
+        return {k: v for step in self.history for k, v in step.model.items()} | {
             k: v for step in self.current.steps for k, v in step.model.items()
         }
 
@@ -547,7 +553,6 @@ Aufgabenblatt 3 Punkte gibt, bekommt ihr 2.5 Punkte.
 class RecursionState:
     history: list[RecursionLevel]
     index: int
-    named_formulas: dict[str, Formula]
 
     @property
     def formula(self) -> Formula:
@@ -565,13 +570,21 @@ class RecursionState:
             for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
         )
 
+    @property
+    def named_formulas(self) -> dict[str, str]:
+        return {
+            formula.short: formula.unicode()
+            for elem in self.history
+            for formula in (elem.formula, elem.after_simplify)
+            if formula.short is not None and formula.short.find("(") < 0
+        }
+
     def recurse(self, level: RecursionLevel) -> None:
         self.history.append(level)
         self.index = len(self.history) - 1
 
     def backtrack(self, level: int) -> None:
         self.index = level
-
 
 
 @dataclass
@@ -596,27 +609,30 @@ class RecursionLevel:
 def with_recursion_history(
     state: RecursionState, question_text: str, answers: list[MultipleChoiceAnswer]
 ) -> Presentation:
+    header_height = 16 + 3 * (1 + len(state.named_formulas))
     header = Text(
         2,
         2,
         96,
-        16,
+        header_height,
         f"Die aktuelle Formel nach anwendung von Simplify ist: {state.formula}\n"
-        f"DPLL wählt in jedem Schritt das erste mögliche Literal in dieser Reihenfolge: {state.heuristic}",
+        f"DPLL wählt in jedem Schritt das erste mögliche Literal in dieser Reihenfolge: {state.heuristic}"
+        + ("\nBenannte Formeln:" if state.named_formulas else "")
+        + "".join(f"\n{name} = {formula}" for name, formula in state.named_formulas.items()),
     )
     history = Table(
         2,
-        18,
+        header_height + 2,
         58,
-        80,
+        96 - header_height,
         "Bisherige DPLL Aufrufe",
         "Bisherige DPLL Aufrufe:\n\n" + "\n\n".join(f"{i + 1}: {elem}" for i, elem in enumerate(state.history)),
     )
     question = MultipleChoiceQuestion(
         60,
-        18,
+        header_height + 2,
         38,
-        80,
+        96 - header_height,
         question_text,
         answers,
     )
@@ -645,10 +661,7 @@ def backtrack_step(state: RecursionState, correct: int | None) -> Presentation:
         "Wird der Algorithmus beendet? Wenn nicht, zu welchem Rekursionsschritt wird zurück gesprungen?",
         [
             MultipleChoiceAnswer('Der Algorithmus terminiert mit "unerfüllbar"', correct=correct is None),
-            *(
-                MultipleChoiceAnswer(f"Schritt {i + 1}", correct=i == correct)
-                for i, elem in enumerate(state.history)
-            ),
+            *(MultipleChoiceAnswer(f"Schritt {i + 1}", correct=i == correct) for i, elem in enumerate(state.history)),
         ],
     )
 
@@ -682,24 +695,30 @@ def aufgabe_1() -> OuterElement:
 
 def aufgabe_2() -> OuterElement:
     P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
-    phi = Formula((
-        (P, ~Q),
-        (~P, Q),
-        (~P, ~Q),
-        (S, ~Q, R),
-        (~S, ~R, P),
-        (~S, R),
-        (~R, S),
-    ))
-    state = RecursionState([RecursionLevel(phi, phi, {})], 0, {})
+    phi = Formula(
+        (
+            (P, ~Q),
+            (~P, Q),
+            (~P, ~Q),
+            (S, ~Q, R),
+            (~S, ~R, P),
+            (~S, R),
+            (~R, S),
+        ),
+        "ϕ",
+    )
+    state = RecursionState([RecursionLevel(phi, phi, {})], 0)
     first = curr = recursion_step(state, P)
 
-    psi = Formula((
-        (),
-        (~S, R),
-        (~R, S),
-    ))
-    level = RecursionLevel(Formula((*phi.clauses, (P,))), psi, {"P": 1, "Q": 1})
+    psi = Formula(
+        (
+            (),
+            (~S, R),
+            (~R, S),
+        ),
+        "ψ",
+    )
+    level = RecursionLevel(phi.add_unit(P), psi, {"P": 1, "Q": 1})
     state.recurse(level)
     curr.next_question = curr = recursion_step(state, None)
 
@@ -709,18 +728,21 @@ def aufgabe_2() -> OuterElement:
 
     curr.next_question = curr = recursion_step(state, ~P)
 
-    psi_prime = Formula((
-        (S, R),
-        (~S, ~R),
-        (~S, R),
-        (~R, S),
-    ))
-    level = RecursionLevel(Formula((*phi.clauses, (~P,))), psi_prime, {"P": 0, "Q": 0})
+    psi_prime = Formula(
+        (
+            (S, R),
+            (~S, ~R),
+            (~S, R),
+            (~R, S),
+        ),
+        "ψ'",
+    )
+    level = RecursionLevel(phi.add_unit(~P), psi_prime, {"P": 0, "Q": 0})
     state.recurse(level)
     curr.next_question = curr = recursion_step(state, R)
 
     theta = Formula(((),))
-    level = RecursionLevel(Formula((*psi_prime.clauses, (R,))), theta, {"R": 1, "S": 0})
+    level = RecursionLevel(psi_prime.add_unit(R), theta, {"R": 1, "S": 0})
     state.recurse(level)
     curr.next_question = curr = recursion_step(state, None)
 
@@ -731,7 +753,7 @@ def aufgabe_2() -> OuterElement:
     curr.next_question = curr = recursion_step(state, ~R)
 
     theta_prime = theta
-    level = RecursionLevel(Formula((*psi_prime.clauses, (~R,))), theta_prime, {"R": 0, "S": 1})
+    level = RecursionLevel(psi_prime.add_unit(~R), theta_prime, {"R": 0, "S": 1})
     state.recurse(level)
     curr.next_question = curr = recursion_step(state, None)
 
