@@ -148,11 +148,13 @@ class MultipleChoiceAnswer:
 class MultipleChoiceQuestion(PresentationElement):
     question: str
     answers: list[MultipleChoiceAnswer]
+    type: Literal["single", "multi"] = "multi"
 
     def to_json(self) -> Json:
         data = super().to_json()
         data["params"]["question"] = format_text(self.question)
         data["params"]["answers"] = [answer.to_json() for answer in self.answers]
+        data["params"]["behaviour"]["type"] = self.type
         return data
 
 
@@ -648,6 +650,7 @@ def with_recursion_history(
         96 - header_height,
         question_text,
         answers,
+        type="single",
     )
     return Presentation(f"Step {state.formula}", [header, history, question])
 

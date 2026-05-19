@@ -15,7 +15,7 @@
       "enableRetry": false,
       "enableSolutionsButton": false,
       "enableCheckButton": true,
-      "type": "multi",
+      "type": null,
       "singlePoint": true,
       "randomAnswers": false,
       "showSolutionsRequiresInput": true,
