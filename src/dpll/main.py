@@ -498,7 +498,7 @@ def simplify_apply(state: State, rule: RuleOption) -> Presentation:
         100,
         "Trage die vereinfachte Formel ein. Nutze die computerlesbare Notation ohne "
         "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
-        f"Wende {rule} an auf die Formel {state.formula}",
+        f"Wende {rule} an auf die Formel \\({state.formula.latex(force_long=True)}\\)",
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}",
         new_state.formula.valid_spellings(),
     )
@@ -514,7 +514,7 @@ def dpll_next_step(state: State) -> Presentation:
         0,
         100,
         100,
-        f"Simplify gibt {formula} aus. Was ist das weitere Vorgehen von DPLL?",
+        f"Simplify gibt \\({formula.latex(force_long=True)}\\) aus. Was ist das weitere Vorgehen von DPLL?",
         [
             MultipleChoiceAnswer("Die Formel ist gleich \\(\\top\\), wir geben eine Belegung zurück.", first),
             MultipleChoiceAnswer('Die Formel enthält \\(\\bot\\) als Klausel, wir geben "unerfüllbar" zurück.', second),
@@ -546,7 +546,7 @@ def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
         100,
         "Trage die berechnete Formel ein. Nutze die computerlesbare Notation ohne "
         "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
-        f"Die aktuelle Formel ist {state.formula}, das ausgewählte Literal ist {literal}."
+        f"Die aktuelle Formel ist \\({state.formula.latex(force_long=True)}\\), das ausgewählte Literal ist {literal}."
         " Mit welcher Formel wird DPLL rekursiv aufgerufen?",
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}.",
         new_state.formula.valid_spellings(),
