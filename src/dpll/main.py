@@ -350,14 +350,13 @@ class CurrentSimplify:
     steps: list[RuleApplication]
 
     def __str__(self) -> str:
-        steps = "".join(f'<p style="text-indent: 1em;">{step}</p>' for step in self.steps)
-        return f"<p>Aktueller Simplify Aufruf:</p>{steps}"
+        steps = "\n\n".join(str(step) for step in self.steps)
+        return f"Aktueller Simplify Aufruf:\n\n{steps}"
 
     def summarize(self, orig: Formula, chosen_literal: ALLiteral) -> SimplifyAndRecurse:
-        if not self.steps:
-            raise RuntimeError
+        simple_formula = self.steps[-1].formula if self.steps else orig
         model = {k: v for step in self.steps for k, v in step.model.items()}
-        return SimplifyAndRecurse(orig, self.steps[-1].formula, model, chosen_literal)
+        return SimplifyAndRecurse(orig, simple_formula, model, chosen_literal)
 
 
 @dataclass
@@ -419,16 +418,16 @@ class State:
 def with_history(
     title: str, question: MultipleChoiceQuestion, state: State, formula: Literal["curr", "orig"]
 ) -> Presentation:
-    question.x = 50
+    question.x = 70
     question.y = 10
-    question.width = 50
+    question.width = 28
     question.height = 90
     if formula == "curr":
         formula_str = f"Aktuelle Formel: {state.formula}"
     else:
         formula_str = f"Ursprüngliche Formel: {state.original_formula}"
     formula_text = Text(0, 0, 100, 10, formula_str)
-    history_text = Table(0, 10, 50, 90, "History", str(state))
+    history_text = Table(2, 10, 68, 90, "History", str(state))
     return Presentation(title, [formula_text, history_text, question])
 
 
@@ -482,8 +481,8 @@ def dpll_next_step(state: State) -> Presentation:
         100,
         f"Simplify gibt {formula} aus. Was ist das weitere Vorgehen von DPLL?",
         [
-            MultipleChoiceAnswer("Die Formel ist gleich ⊤, wir geben eine Belegung zurück.", first),
-            MultipleChoiceAnswer('Die Formel enthält  als Klausel, wir geben "unerfüllbar" zurück.', second),
+            MultipleChoiceAnswer("Die Formel ist gleich \\(\\top\\), wir geben eine Belegung zurück.", first),
+            MultipleChoiceAnswer('Die Formel enthält \\(\\bot\\) als Klausel, wir geben "unerfüllbar" zurück.', second),
             MultipleChoiceAnswer("Wir wählen ein Literal und wenden DPLL rekursiv an.", not first and not second),
         ],
     )
@@ -791,8 +790,15 @@ def aufgabe_2() -> OuterElement:
     return first
 
 
+def bonus_1() -> OuterElement:
+    P, Q, R, S = [ALLiteral(symbol, is_negated=False) for symbol in "PQRS"]
+    formula = Formula(((~P, Q, R), (~P, ~R, ~Q), (P, Q), (~Q, S, R), (~S, P, ~Q)))
+    state = State.fresh(formula)
+    return simplify_rules(state)
+    
+
 if __name__ == "__main__":
     notation = notation_slide()
-    notation.next_question = aufgabe_2()
+    notation.next_question = bonus_1()
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     notation.package_task(Path("test.h5p"))
