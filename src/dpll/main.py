@@ -246,10 +246,10 @@ class ALLiteral:
         return f"\\neg {self.symbol}" if self.is_negated else self.symbol
 
 
-@dataclass(frozen=True)
+@dataclass(unsafe_hash=True)
 class Formula:
     clauses: tuple[tuple[ALLiteral, ...], ...]
-    short: str | None = None
+    short: str | None = field(default=None, hash=False, compare=False)
 
     def symbols(self) -> list[str]:
         return sorted({lit.symbol for clause in self.clauses for lit in clause})
@@ -303,7 +303,9 @@ class Formula:
         return spellings
 
     def add_unit(self, literal: ALLiteral) -> Self:
-        return type(self)((*self.clauses, (literal,)), f"{self.short} \\land ({literal.latex()})" if self.short else None)
+        return type(self)(
+            (*self.clauses, (literal,)), f"{self.short} \\land ({literal.latex()})" if self.short else None
+        )
 
 
 type Rule = Literal["UPR", "PLR"]
@@ -328,7 +330,9 @@ class RuleApplication:
 
     def __str__(self) -> str:
         model = ", ".join(f"\\mathfrak A({sym}) = {val}" for sym, val in self.model.items())
-        return f"{self.rule} mit \\(\\lambda = {self.literal.latex()}\\) setzt \\({model}\\) und liefert\n{self.formula}"
+        return (
+            f"{self.rule} mit \\(\\lambda = {self.literal.latex()}\\) setzt \\({model}\\) und liefert\n{self.formula}"
+        )
 
     @classmethod
     def from_rule_choice(cls, formula: Formula, rule: RuleOption) -> Self:
@@ -374,6 +378,9 @@ class SimplifyAndRecurse:
         )
 
 
+FORMULA_NAMES = ["\\varphi", "\\psi", "\\theta", "\\chi", "\\eta"]
+
+
 @dataclass
 class State:
     formula: Formula
@@ -385,17 +392,39 @@ class State:
     def fresh(cls, formula: Formula) -> Self:
         return cls(formula, [], CurrentSimplify([]), formula)
 
+    def named_formulas(self) -> dict[Formula, str]:
+        formulas = [
+            self.original_formula,
+            *(step.simple_formula for step in self.history),
+            *(step.formula for step in self.current.steps),
+        ]
+        names: dict[Formula, str] = {formula: formula.short for formula in formulas if formula.short is not None}
+        greek_letters = iter(FORMULA_NAMES)
+        for formula in formulas:
+            if formula.short is not None or len(formula.ascii()) < 32:
+                continue
+            if (
+                formula.clauses
+                and len(formula.clauses[-1]) == 1
+                and (without_unit := Formula((*formula.clauses[:-1],))) in names
+            ):
+                formula.short = f"{names[without_unit]} \\land ({formula.clauses[-1][0].latex()})"
+            else:
+                formula.short = next(greek_letters)
+            names[formula] = formula.short
+        return names
+
     def __str__(self) -> str:
-        return "".join(str(elem) for elem in self.history) + str(self.current)
+        return "\n\n".join(str(elem) for elem in self.history) + str(self.current)
 
     def dpll_choice(self, chosen_literal: ALLiteral) -> State:
         if self.history:
             step = self.history[-1]
-            original_formula = Formula((*step.simple_formula.clauses, (step.chosen_literal,)))
+            original_formula = step.simple_formula.add_unit(step.chosen_literal)
         else:
             original_formula = self.original_formula
         return State(
-            formula=Formula((*self.formula.clauses, (chosen_literal,))),
+            formula=self.formula.add_unit(chosen_literal),
             history=[*self.history, self.current.summarize(original_formula, chosen_literal)],
             current=CurrentSimplify([]),
             original_formula=self.original_formula,
@@ -418,16 +447,22 @@ class State:
 def with_history(
     title: str, question: MultipleChoiceQuestion, state: State, formula: Literal["curr", "orig"]
 ) -> Presentation:
-    question.x = 70
-    question.y = 10
-    question.width = 28
+    names = state.named_formulas()
+    header_height = 18 + 4 * (1 + len(names))
+    question.x = 60
+    question.y = header_height
+    question.width = 38
     question.height = 90
     if formula == "curr":
         formula_str = f"Aktuelle Formel: {state.formula}"
     else:
         formula_str = f"Ursprüngliche Formel: {state.original_formula}"
-    formula_text = Text(0, 0, 100, 10, formula_str)
-    history_text = Table(2, 10, 68, 90, "History", str(state))
+    if names:
+        formula_str += "\nBenannte Formeln:\n" + "\n".join(
+            f"\\({name} = {formula.latex(force_long=True)}\\)" for formula, name in names.items()
+        )
+    formula_text = Text(0, 0, 100, header_height, formula_str)
+    history_text = Table(2, header_height, 58, 90, "History", str(state))
     return Presentation(title, [formula_text, history_text, question])
 
 
@@ -578,11 +613,15 @@ class RecursionState:
 
     @cached_property
     def heuristic(self) -> str:
-        return "\\(" + ", ".join(
-            lit.latex()
-            for symbol in self.original_formula.symbols()
-            for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
-        ) + "\\)"
+        return (
+            "\\("
+            + ", ".join(
+                lit.latex()
+                for symbol in self.original_formula.symbols()
+                for lit in (ALLiteral(symbol, is_negated=False), ALLiteral(symbol, is_negated=True))
+            )
+            + "\\)"
+        )
 
     @property
     def named_formulas(self) -> dict[str, str]:
@@ -795,7 +834,7 @@ def bonus_1() -> OuterElement:
     formula = Formula(((~P, Q, R), (~P, ~R, ~Q), (P, Q), (~Q, S, R), (~S, P, ~Q)))
     state = State.fresh(formula)
     return simplify_rules(state)
-    
+
 
 if __name__ == "__main__":
     notation = notation_slide()
