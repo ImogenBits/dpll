@@ -487,7 +487,7 @@ def simplify_rules(state: State) -> Presentation:
     return rules_choice
 
 
-SIMPLIFY_SPECIFY_MODEL = True
+SIMPLIFY_SPECIFY_MODEL = False
 
 
 def simplify_apply(state: State, rule: RuleOption) -> Presentation:
@@ -588,9 +588,8 @@ def dpll_define_model(state: State) -> Presentation:
     return with_history("Define Model", question, state, "orig")
 
 
-def notation_slide() -> Presentation:
-    text = format_text(
-        """In dieser Aufgabe werden wir die einzelnen Schritte des DPLL Algorithmus anwenden.
+def notation_slide(*, is_graded: bool) -> Presentation:
+    text = """In dieser Aufgabe werden wir die einzelnen Schritte des DPLL Algorithmus anwenden.
 Um das etwas einfacher zu machen verwenden wir dafür eine vereinfachte computerlesbare Notation.
 
 Dabei werden statt den logischen Junktoren \\(\\land, \\lor\\) und \\(\\neg\\) die ASCII Symbole &, | und ! verwendet.
@@ -601,8 +600,9 @@ Literal enthalten. Es sind auch keine Leerzeichen erlaubt. Für die leere Konjun
 
 Zum Beispiel wird die Formel "\\((P \\lor \\neg Q) \\land (R)\\)" als "(P|!Q)&(R)" geschrieben und
 "\\((() \\land (P \\lor (\\neg Q \\lor R))) \\land (Q \\lor \\neg S)\\)" als "()&(P|!Q|R)&(Q|!S)".
-
-Bei jeder Frage könnt ihr Teilpunkte erreichen. Falls ihr eine Frage falsch beantwortet könnt
+"""
+    if is_graded:
+        text += """\n\nBei jeder Frage könnt ihr Teilpunkte erreichen. Falls ihr eine Frage falsch beantwortet könnt
 ihr mit den weiteren Fragen weiter machen, ihr könnt aber nicht zurück und vorherige Aufgaben
 korrigieren. Die in diesem System angezeigte "Punktzahl" ist nicht die Punkte die ihr insgesamt
 zur Zulassung bekommt, sondern wird erst auf die für diese Aufgabe verteilte Punkte runter
@@ -610,8 +610,11 @@ gerechnet. Wenn ihr hier also z.B. 10 von 12 Fragen richtig beantwortet und die 
 Aufgabenblatt 3 Punkte gibt, bekommt ihr 2.5 Punkte.
 
 """
-    )
-    return Presentation("Notation", [Text(5, 5, 95, 95, text)])
+    else:
+        text += """\n\nBei dieser Aufgabe erhaltet ihr keine Punkte. Die hier angezeigte Anzahl von richtigen und falschen
+Antworten ist also nicht zulassungsrelevant."""
+    
+    return Presentation("Notation", [Text(5, 5, 95, 95, format_text(text))])
 
 
 #######################################################
@@ -858,7 +861,7 @@ def bonus_1() -> OuterElement:
 
 
 if __name__ == "__main__":
-    notation = notation_slide()
+    notation = notation_slide(is_graded=False)
     notation.next_question = bonus_1()
     # bundle_template(Path(__file__).parent / "templates" / "template.h5p")
     notation.package_task(Path("test.h5p"))
