@@ -161,15 +161,14 @@ class MultipleChoiceQuestion(PresentationElement):
 @dataclass
 class Blanks(PresentationElement):
     description: str
-    top_text: str
-    bottom_text: str
-    answers: list[str]
+    text: str
+    answers: list[list[str]]
 
     def to_json(self) -> Json:
         data = get_template("blanks")
         data["params"]["text"] = format_text(self.description)
-        data["params"]["questions"][0] = (
-            format_text(self.top_text) + format_text("*" + "/".join(self.answers) + "*") + format_text(self.bottom_text)
+        data["params"]["questions"][0] = format_text(
+            self.text.format(*(f"*{'/' if options == [''] else '/'.join(options)}*" for options in self.answers))
         )
         return data
 
@@ -448,7 +447,7 @@ def with_history(
     title: str, question: MultipleChoiceQuestion, state: State, formula: Literal["curr", "orig"]
 ) -> Presentation:
     names = state.named_formulas()
-    header_height = 18 + 4 * (1 + len(names))
+    header_height = 10 + 4 * (1 + len(names))
     question.x = 60
     question.y = header_height
     question.width = 38
@@ -488,9 +487,30 @@ def simplify_rules(state: State) -> Presentation:
     return rules_choice
 
 
+SIMPLIFY_SPECIFY_MODEL = True
+
+
 def simplify_apply(state: State, rule: RuleOption) -> Presentation:
     application = RuleApplication.from_rule_choice(state.formula, rule)
     new_state = state.simplify_step(application)
+    if SIMPLIFY_SPECIFY_MODEL:
+        symbols = state.original_formula.symbols()
+        model_text = (
+            "Welche Belegung wird in diesem Schritt berechnet? "
+            "Trage die gesetzten Werte ein und lasse die übrigen Felder frei.\n"
+            + "    ".join(f"{symbol}: {{}}" for symbol in symbols)
+        )
+        model_answers = [
+            [str(application.model[symbol])]
+            if symbol == rule.literal.symbol
+            else ["0", "1"]
+            if symbol in application.model
+            else [""]
+            for symbol in symbols
+        ]
+    else:
+        model_text = ""
+        model_answers = []
     blanks = Blanks(
         0,
         0,
@@ -498,9 +518,10 @@ def simplify_apply(state: State, rule: RuleOption) -> Presentation:
         100,
         "Trage die vereinfachte Formel ein. Nutze die computerlesbare Notation ohne "
         "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
-        f"Wende {rule} an auf die Formel \\({state.formula.latex(force_long=True)}\\)",
-        f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}",
-        new_state.formula.valid_spellings(),
+        f"Wende {rule} an auf die Formel \\({state.formula.latex(force_long=True)}\\)\n\n"
+        "{}\n\n"
+        f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}\n\n" + model_text,
+        [new_state.formula.valid_spellings(), *model_answers],
     )
     return Presentation(f"Apply {rule} to {state.formula}", [blanks], next_question=simplify_rules(new_state))
 
@@ -547,9 +568,9 @@ def dpll_apply_choice(state: State, literal: ALLiteral) -> Presentation:
         "Trage die berechnete Formel ein. Nutze die computerlesbare Notation ohne "
         "Leerzeichen und beachte dabei die Klammerungsregeln in DPLL.",
         f"Die aktuelle Formel ist \\({state.formula.latex(force_long=True)}\\), das ausgewählte Literal ist {literal}."
-        " Mit welcher Formel wird DPLL rekursiv aufgerufen?",
+        " Mit welcher Formel wird DPLL rekursiv aufgerufen?\n\n{}\n\n"
         f"Hinweis: in computerlesbarer Notation ist die Formel {state.formula.ascii()}.",
-        new_state.formula.valid_spellings(),
+        [new_state.formula.valid_spellings()],
     )
     return Presentation(f"Apply Choice {literal}", [question], next_question=simplify_rules(new_state))
 
